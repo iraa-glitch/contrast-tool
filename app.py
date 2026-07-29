@@ -1,4 +1,5 @@
 import csv
+import math
 from pathlib import Path
 
 import streamlit as st
@@ -9,6 +10,7 @@ st.set_page_config(
 )
 
 st.title("Optical Contrast Tool")
+st.caption("For samples on 90 nm SiO₂ substrates.")
 
 calibrations = {
     "Zeiss": 7.791342952,
@@ -85,7 +87,6 @@ if st.button("Calculate"):
 
         st.write(f"ΔI: **{delta_i:.6f}**")
         st.write(f"Optical contrast: **{contrast:.3f}%**")
-
         st.write(
             f"Calculated layer number: "
             f"**{calculated_layers:.3f}**"
@@ -96,6 +97,7 @@ if st.button("Calculate"):
             f"{estimated_layers} layers"
         )
 
+        # Use only the data from the selected microscope.
         all_points = calibration_data[microscope]
 
         measured_points = [
@@ -126,7 +128,11 @@ if st.button("Calculate"):
             5
         )
 
-        line_end = maximum_layer + 0.5
+        # End the graph at the next whole layer number.
+        x_axis_end = max(1, math.ceil(maximum_layer))
+
+        # Show only whole numbers on the x-axis.
+        integer_ticks = list(range(1, x_axis_end + 1))
 
         calibration_line = [
             {
@@ -134,16 +140,21 @@ if st.button("Calculate"):
                 "Optical contrast (%)": 0.0
             },
             {
-                "Layer number": line_end,
-                "Optical contrast (%)": monolayer_contrast * line_end
+                "Layer number": float(x_axis_end),
+                "Optical contrast (%)":
+                    monolayer_contrast * x_axis_end
             }
         ]
 
-        user_point = [
+        # The user's contrast is shown as a horizontal red line.
+        user_contrast_line = [
             {
-                "Layer number": calculated_layers,
-                "Optical contrast (%)": contrast,
-                "Point": "User measurement"
+                "Layer number": 0.0,
+                "Optical contrast (%)": contrast
+            },
+            {
+                "Layer number": float(x_axis_end),
+                "Optical contrast (%)": contrast
             }
         ]
 
@@ -157,7 +168,11 @@ if st.button("Calculate"):
                     "title": "Layer number",
                     "scale": {
                         "zero": True,
-                        "domainMin": 0
+                        "domain": [0, x_axis_end]
+                    },
+                    "axis": {
+                        "values": integer_ticks,
+                        "format": "d"
                     }
                 },
                 "y": {
@@ -172,7 +187,9 @@ if st.button("Calculate"):
             },
             "layer": [
                 {
-                    "data": {"values": calibration_line},
+                    "data": {
+                        "values": calibration_line
+                    },
                     "mark": {
                         "type": "line",
                         "color": "gray",
@@ -181,7 +198,9 @@ if st.button("Calculate"):
                     }
                 },
                 {
-                    "data": {"values": measured_points},
+                    "data": {
+                        "values": measured_points
+                    },
                     "mark": {
                         "type": "point",
                         "filled": True,
@@ -218,7 +237,9 @@ if st.button("Calculate"):
                     }
                 },
                 {
-                    "data": {"values": reference_points},
+                    "data": {
+                        "values": reference_points
+                    },
                     "mark": {
                         "type": "point",
                         "shape": "diamond",
@@ -250,32 +271,20 @@ if st.button("Calculate"):
                     }
                 },
                 {
-                    "data": {"values": user_point},
+                    "data": {
+                        "values": user_contrast_line
+                    },
                     "mark": {
-                        "type": "point",
-                        "filled": True,
+                        "type": "line",
                         "color": "red",
-                        "size": 280,
-                        "stroke": "black",
-                        "strokeWidth": 1
+                        "strokeWidth": 3
                     },
                     "encoding": {
                         "tooltip": [
                             {
-                                "field": "Point",
-                                "type": "nominal",
-                                "title": "Point"
-                            },
-                            {
-                                "field": "Layer number",
-                                "type": "quantitative",
-                                "title": "Calculated layers",
-                                "format": ".3f"
-                            },
-                            {
                                 "field": "Optical contrast (%)",
                                 "type": "quantitative",
-                                "title": "Contrast (%)",
+                                "title": "User contrast (%)",
                                 "format": ".3f"
                             }
                         ]
@@ -290,7 +299,9 @@ if st.button("Calculate"):
         )
 
         st.caption(
-            "Blue circles: measured samples grouped by the nearest estimated "
-            "layer. Blue diamond: the monolayer reference. Red dot: the user's "
-            "measurement. Dashed line: the monolayer-based calibration."
+            "Blue circles: previous measurements grouped by the nearest "
+            "estimated layer. Blue diamond: the monolayer reference. "
+            "Red line: the user's measured contrast. Dashed line: the "
+            "monolayer-based calibration. The intersection of the red and "
+            "dashed lines gives the calculated layer number."
         )
